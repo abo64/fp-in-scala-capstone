@@ -11,7 +11,6 @@ trait Extraction {
   type StnId = Int
   type WbanId = Int
   type StationId = (Option[StnId], Option[WbanId])
-  type Temperature = Double
 
   private def asTemperature(double: Temperature): Temperature =
     math.round(double * 10) / 10d
@@ -25,13 +24,13 @@ trait Extraction {
     * @param temperaturesFile Path of the temperatures resource file to use (e.g. "/1975.csv")
     * @return A sequence containing triplets (date, location, temperature)
     */
-  def locateTemperatures(year: Int, stationsFile: String, temperaturesFile: String): Iterable[(LocalDate, Location, Double)]
+  def locateTemperatures(year: Year, stationsFile: String, temperaturesFile: String): Iterable[(LocalDate, Location, Temperature)]
 
   /**
     * @param records A sequence containing triplets (date, location, temperature)
     * @return A sequence containing, for each location, the average temperature over the year.
     */
-  def locationYearlyAverageRecords(records: Iterable[(LocalDate, Location, Double)]): Iterable[(Location, Double)] = {
+  def locationYearlyAverageRecords(records: Iterable[(LocalDate, Location, Temperature)]): Iterable[(Location, Temperature)] = {
     def yearlyAvgTemperature(temperatures: Iterable[Double]): Double =
       asTemperature(temperatures.sum / temperatures.size)
 
@@ -61,7 +60,7 @@ trait SparkExtraction extends Extraction with Serializable { sparkExtraction =>
   import scala.reflect.ClassTag
   import org.apache.spark.rdd.RDD
 
-  override def locateTemperatures(year: Int, stationsFile: String, temperaturesFile: String): Iterable[(LocalDate, Location, Double)] = {
+  override def locateTemperatures(year: Year, stationsFile: String, temperaturesFile: String): Iterable[(LocalDate, Location, Double)] = {
     def parse[T](row: Row, i: Int, f: String => T): Option[T] =
       Option(row.getString(i)) filter (_.nonEmpty) map f
     def parseInt(row: Row, i: Int): Option[Int] = parse(row, i, _.toInt)

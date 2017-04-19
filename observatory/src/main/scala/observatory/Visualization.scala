@@ -13,10 +13,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
   */
 object Visualization {
 
-  type Distance = Double
-  type Temperature = Double
-  type Weight = Double
-
   /**
     * @param temperatures Known temperatures: pairs containing a location and the temperature at this location
     * @param location Location where to predict the temperature
@@ -86,8 +82,6 @@ object Visualization {
     * @return A 360×180 image where each pixel shows the predicted temperature at its location
     */
   def visualize(temperatures: Iterable[(Location, Temperature)], colors: Iterable[(Temperature, Color)]): Image = {
-    implicit def toRGBColor(c: Color): RGBColor = RGBColor(c.red, c.green, c.blue)
-
     val width = 360
     val height = 180
 
