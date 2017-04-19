@@ -1,18 +1,39 @@
 package observatory
 
-import com.sksamuel.scrimage.{Image, Pixel}
-import math._
 import java.io.File
+
+import scala.concurrent.Await
+import scala.concurrent.duration.DurationInt
+import scala.language.postfixOps
+import scala.math.Pi
+import scala.math.atan
+import scala.math.sinh
+import scala.math.toDegrees
+
+import com.sksamuel.scrimage.Image
+import com.sksamuel.scrimage.Pixel
+
+import monix.eval.Task
+import monix.execution.Scheduler
+import monix.execution.schedulers.ExecutionModel.AlwaysAsyncExecution
+
 
 /**
   * 3rd milestone: interactive visualization
   */
 object Interaction {
 
+  def main(args: Array[String]): Unit = {
+    (1975 to 2015) foreach (year =>
+      Interaction.generateTiles(Seq(Interaction.yearlyData(year)), Interaction.generateImage))
+  }
+
   /**
     * @param zoom Zoom level
     * @param x X coordinate
     * @param y Y coordinate
+import monix.execution.schedulers.ExecutionModel.AlwaysAsyncExecution
+    * 
     * @return The latitude and longitude of the top-left corner of the tile, as per http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
     */
   def tileLocation(zoom: Int, x: Int, y: Int): Location =
@@ -36,18 +57,21 @@ object Interaction {
   def tile(temperatures: Iterable[(Location, Double)], colors: Iterable[(Double, Color)], zoom: Zoom, x: Int, y: Int): Image = {
     import Visualization._
 
-    val width = 256
-    val height = 256
-    val step = 1d / width
-    def interpolate(a1: Int, a2: Int): Double = a1.toDouble + a2 * step
+    val scale = 4
+    val tileSize = 256 / scale
+    val alpha = 127
+    val delta = 1.0 / tileSize
+
+    def interpolate(a1: Int, a2: Int): Double = a1.toDouble + a2 * delta
 
     val pixels: Seq[Pixel] = for {
-      yt <- 0 until height
-      xt <- 0 until width
+      yt <- 0 until tileSize
+      xt <- 0 until tileSize
       color = interpolateColor(colors, predictTemperature(temperatures, tileLocationDouble(zoom, interpolate(x, xt), interpolate(y, yt))))
     } yield color.toPixel
  
-    Image(width, height, pixels.toArray)
+    val image = Image(tileSize, tileSize, pixels.toArray)
+    image.scale(scale)
   }
 
   private type YearlyData = Iterable[(Location, Temperature)]
@@ -55,7 +79,9 @@ object Interaction {
   private[observatory] def generateImage(year: Year, zoom: Zoom, x: Int, y: Int, data: YearlyData): Unit = {
     val outputFile = new File(s"target/temperatures/$year/$zoom/$x-$y.png”")
     outputFile.getParentFile.mkdirs()
-    val image = tile(data, ColorPalette, zoom, x, y)
+    val image = time(s"Generating tile $year $x $y (level $zoom)") {
+      tile(data, ColorPalette, zoom, x, y)
+    }
     image.output(outputFile)
     ()
   }
@@ -68,6 +94,10 @@ object Interaction {
     (year, temperatures)
   }
 
+  private implicit val scheduler = Scheduler.computation(
+        parallelism = Runtime.getRuntime().availableProcessors(),
+        executionModel = AlwaysAsyncExecution)
+
   /**
     * Generates all the tiles for zoom levels 0 to 3 (included), for all the given years.
     * @param yearlyData Sequence of (year, data), where `data` is some data associated with
@@ -79,12 +109,17 @@ object Interaction {
     yearlyData: Iterable[(Year, Data)],
     generateImage: (Year, Zoom, Int, Int, Data) => Unit): Unit =
   {
-    for {
-      zoom <- 0 to 3
-      (year, data) <- yearlyData
-      maxCoord = math.pow(2, zoom).toInt - 1
-      x <- 0 to maxCoord
-      y <- 0 to maxCoord
-    } generateImage(year, zoom, x, y, data)
+    val imageTasks: Iterable[Task[Unit]] =
+      for {
+          (year, data) <- yearlyData
+          zoom <- 0 to 3
+          maxCoord = math.pow(2, zoom).toInt
+          x <- 0 until maxCoord
+          y <- 0 until maxCoord
+        } yield Task(generateImage(year, zoom, x, y, data))
+
+    val future = Task.gatherUnordered(imageTasks).runAsync
+    Await.result(future, 4 hours)
+    ()
   }
 }
