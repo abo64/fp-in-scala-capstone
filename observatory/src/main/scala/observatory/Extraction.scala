@@ -12,9 +12,6 @@ trait Extraction {
   type WbanId = Int
   type StationId = (Option[StnId], Option[WbanId])
 
-  private def asTemperature(double: Temperature): Temperature =
-    math.round(double * 10) / 10d
-
   protected def toCelsius(fahrenheit: Temperature): Temperature =
     asTemperature((fahrenheit - 32) * 5 / 9)
 
@@ -31,14 +28,11 @@ trait Extraction {
     * @return A sequence containing, for each location, the average temperature over the year.
     */
   def locationYearlyAverageRecords(records: Iterable[(LocalDate, Location, Temperature)]): Iterable[(Location, Temperature)] = {
-    def yearlyAvgTemperature(temperatures: Iterable[Double]): Double =
-      asTemperature(temperatures.sum / temperatures.size)
-
     records
       .groupBy(_._2)
       .toSeq
       .sortBy(x => (x._1.lat, x._1.lon))
-      .map { case ((location , records)) => (location, yearlyAvgTemperature(records map (_._3))) }
+      .map { case ((location , records)) => (location, averageTemperature(records map (_._3))) }
   }
 }
 

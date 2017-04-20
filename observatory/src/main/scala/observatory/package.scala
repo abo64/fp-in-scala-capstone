@@ -11,6 +11,14 @@ package object observatory {
   type Year = Int
   type Zoom = Int
 
+  def asTemperature(double: Double): Temperature =
+    math.round(double * 10) / 10d
+
+  def averageTemperature(temperatures: Iterable[Temperature], rounded: Boolean = true): Temperature = {
+    val avg = temperatures.sum / temperatures.size
+    if (rounded) asTemperature(avg) else avg
+  }
+
   implicit def toRGBColor(c: Color): RGBColor = RGBColor(c.red, c.green, c.blue)
 
   val ColorPalette = List(

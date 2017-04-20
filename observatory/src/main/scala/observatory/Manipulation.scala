@@ -1,5 +1,7 @@
 package observatory
 
+import scala.language.postfixOps
+
 /**
   * 4th milestone: value-added information
   */
@@ -10,8 +12,19 @@ object Manipulation {
     * @return A function that, given a latitude in [-89, 90] and a longitude in [-180, 179],
     *         returns the predicted temperature at this location
     */
-  def makeGrid(temperatures: Iterable[(Location, Double)]): (Int, Int) => Double = {
-    ???
+  def makeGrid(temperatures: Iterable[(Location, Temperature)]): (Int, Int) => Temperature = {
+//    val gridCoordinates: Seq[(Int, Int)] =
+//      for {
+//        lat <- -89 to 90
+//        lon <- -180 to 179
+//      } yield (lat, lon)
+//
+//    val gridTemperatures: Map[(Int, Int), Temperature] =
+//      gridCoordinates map { case loc@(lat, lon) =>
+//          (loc -> Visualization.predictTemperature(temperatures, Location(lat, lon)))
+//      } toMap
+
+    (lat, lon) => Visualization.predictTemperature(temperatures, Location(lat, lon))
   }
 
   /**
@@ -19,8 +32,14 @@ object Manipulation {
     *                      is a collection of pairs of location and temperature)
     * @return A function that, given a latitude and a longitude, returns the average temperature at this location
     */
-  def average(temperaturess: Iterable[Iterable[(Location, Double)]]): (Int, Int) => Double = {
-    ???
+  def average(temperaturess: Iterable[Iterable[(Location, Temperature)]]): (Int, Int) => Temperature = {
+    val temperatureGrids: Iterable[(Int, Int) => Temperature] =
+      temperaturess map makeGrid
+
+    (lat, lon) => {
+      val temperatures: Iterable[Temperature] = temperatureGrids map (_(lat, lon))
+      averageTemperature(temperatures, false)
+    }
   }
 
   /**
@@ -28,10 +47,16 @@ object Manipulation {
     * @param normals A grid containing the “normal” temperatures
     * @return A sequence of grids containing the deviations compared to the normal temperatures
     */
-  def deviation(temperatures: Iterable[(Location, Double)], normals: (Int, Int) => Double): (Int, Int) => Double = {
-    ???
+  def deviation(temperatures: Iterable[(Location, Temperature)], normals: (Int, Int) => Temperature): (Int, Int) => Double = {
+    def dev(temperature: Temperature, normalTemperature: Temperature): Temperature =
+      temperature - normalTemperature
+
+    val grid = makeGrid(temperatures)
+
+    (x, y) => {
+      val temperature = grid(x, y)
+      val normalTemperature = normals(x, y)
+      dev(temperature, normalTemperature)
+    }
   }
-
-
 }
-
